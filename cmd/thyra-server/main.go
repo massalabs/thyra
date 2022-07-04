@@ -3,11 +3,13 @@ package main
 import (
 	"flag"
 	"log"
+	"sync"
 
 	"github.com/go-openapi/loads"
 	"github.com/jessevdk/go-flags"
 	"github.com/massalabs/thyra/api/swagger/server/restapi"
-	apiHandler "github.com/massalabs/thyra/internal/apihandler"
+	"github.com/massalabs/thyra/internal/apihandler/cmd"
+	"github.com/massalabs/thyra/internal/apihandler/wallet"
 
 	"github.com/massalabs/thyra/api/swagger/server/restapi/operations"
 )
@@ -28,8 +30,8 @@ func main() {
 		}
 	}()
 
-	server.Port = 80
-	server.TLSPort = 443
+	server.Port = 8080
+	server.TLSPort = 8443
 
 	certFilePtr := flag.String("tls-certificate", "", "path to certificate file")
 	keyFilePtr := flag.String("tls-key", "", "path to key file")
@@ -43,10 +45,16 @@ func main() {
 		server.TLSCertificateKey = flags.Filename(*keyFilePtr)
 	}
 
-	api.CmdExecuteFunctionHandler = operations.CmdExecuteFunctionHandlerFunc(apiHandler.ExecuteFunction)
+	var walletStorage sync.Map
+
+	api.CmdExecuteFunctionHandler = cmd.NewExecuteFunction(&walletStorage)
+
+	api.MgmtWalletCreateHandler = wallet.NewCreate(&walletStorage)
+	api.MgmtWalletImportHandler = wallet.NewImport(&walletStorage)
 
 	// Start server which listening
 	server.ConfigureAPI()
+
 	if err := server.Serve(); err != nil {
 		log.Fatalln(err)
 	}
